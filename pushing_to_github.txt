@@ -1,0 +1,14 @@
+## Pre-requisites
+GitPod login > Profile > User settings > select "GitHub" > Edit Permissions > Check all options
+
+# Initialize a GitHub repo
+git init
+
+# Add files as per requirement. "." indicates to add all files
+git add .
+
+# commit the addition
+git commit -m "testing commit"
+
+# Pushing to the repository on GitHub
+git push
