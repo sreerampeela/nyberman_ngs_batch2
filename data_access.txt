@@ -2,31 +2,29 @@
 sudo apt-get install sra-toolkit
 # configure SRA toolkit to save in current directory
 
+# downloading data
 # select an accession id from sra
-# example ERR2090225 (bacterial genome)
+# example ERR2090226 (bacterial genome)
 # gather data using prefetch
-prefetch ERR2090225 # creates a directory with .sra file in it
-
+mkdir sra_data
+cd sra_data
+prefetch ERR2090226 # creates a directory with .sra file in it
 # generate reads from pre-fetched download
 fastq-dump --split-files --gzip \
-    -X 10000 ERR2090225/ERR2090225.sra
-
-
-# Single-end sequencing example SRR29418955
-prefetch SRR29418955
-fastq-dump --split-files --gzip \
-    -X 10000 SRR29418955/SRR29418955.sra
+    -X 10000 ERR2090226/ERR2090226.sra
 
 # READ QC
 # FASTQC
-/workspace/nyberman_ngs_batch2/FastQC/fastqc ERR2090225_1.fastq ERR2090225_2.fastq
+# install FASTQC
+wget https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.12.1.zip
+unzip fastqc_v0.12.1.zip
+# fastq QC
+/workspace/nyberman_ngs_batch2/FastQC/fastqc ERR2090226_1.fastq.gz ERR2090226_2.fastq.gz
 
 # Read Trimming
+# Install fastp
 wget http://opengene.org/fastp/fastp
 chmod a+x ./fastp
-
-
-
 # trimming reads
 /workspace/nyberman_ngs_batch2/fastp -i ERR2090226_1.fastq.gz -I ERR2090226_2.fastq.gz \
      -o ERR2090226_1_trimmed.fastq.gz -O ERR2090226_2_trimmed.fastq.gz
