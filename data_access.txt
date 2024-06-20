@@ -1,6 +1,7 @@
 # install sra toolkit in Gitpod
 sudo apt-get install sra-toolkit
 # configure SRA toolkit to save in current directory
+vdb-config -i
 
 # downloading data
 # select an accession id from sra
@@ -21,7 +22,7 @@ unzip fastqc_v0.12.1.zip
 # fastq QC
 /workspace/nyberman_ngs_batch2/FastQC/fastqc ERR2090226_1.fastq.gz ERR2090226_2.fastq.gz
 
-# Read Trimming
+# Read Trimming - Trimmomatic, fastp, cutadapt (to remove adapters)
 # Install fastp
 wget http://opengene.org/fastp/fastp
 chmod a+x ./fastp
