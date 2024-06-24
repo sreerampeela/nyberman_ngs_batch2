@@ -1,0 +1,29 @@
+#### To perform some quality check of SAM files ###
+## Following GATK best practices
+
+# run the container for GATK-4
+# updated docker container to run GATK-4
+docker pull broadinstitute/gatk:latest
+docker run -it -v $PWD:/data/ broadinstitute/gatk:latest
+
+# create another sample SAM file (useful for multi-sample comparison)
+gatk MergeBamAlignment \\
+      ALIGNED=aligned.bam \\
+      UNMAPPED=unmapped.bam \\
+      O=merge_alignments.bam \\
+      R=reference_sequence.fasta
+
+gatk SortSam -I /data/sample1.sam -O /data/sample1_sorted.sam -SORT_ORDER coordinate
+
+# mark duplicates
+gatk SortSam -I /data/sample1.sam -O /data/sample1_sorted.sam -SORT_ORDER coordinate
+
+# BQSR
+# download the file 
+wget https://storage.googleapis.com/gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf
+# create ref genome index using samtools
+samtools faidx ref_genome/chr1.fa
+
+
+
+
