@@ -16,14 +16,48 @@ gatk MergeBamAlignment \\
 gatk SortSam -I /data/sample1.sam -O /data/sample1_sorted.sam -SORT_ORDER coordinate
 
 # mark duplicates
-gatk SortSam -I /data/sample1.sam -O /data/sample1_sorted.sam -SORT_ORDER coordinate
+
 
 # BQSR
 # download the file 
 wget https://storage.googleapis.com/gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf
+gatk IndexFeatureFile --input read_mapping/Homo_sapiens_assembly38.dbsnp138.vcf
+
 # create ref genome index using samtools
 samtools faidx ref_genome/chr1.fa
 
+## add read group info
+gatk AddOrReplaceReadGroups \
+       I=read_mapping/marked_duplicates.sam \
+       O=mapping_qc/sam1_rg.sam \
+       RGID=sam1 \
+       RGLB=sam1 \
+       RGPL=ILLUMINA \
+       RGPU=unit1 \
+       RGSM=20
+
+gatk BaseRecalibrator -I mapping_qc/sam1_rg.sam -R ref_genome/chr1.fa --known-sites read_mapping/Homo_sapiens_assembly38.dbsnp138.vcf -O mapping_qc/sample1_recal_data.table
+
+gatk ApplyBQSR -R ref_genome/chr1.fa -I mapping_qc/sam1_rg.sam --bqsr-recal-file mapping_qc/sample1_recal_data.table -O mapping_qc/sample1_recal.bam
+samtools index mapping_qc/sample1_recal.bam
+
+### calling somatic variants using GATK
+# running tumor only pipeline
+gatk Mutect2 -I mapping_qc/sample1_recal.bam -R ref_genome/chr1.fa -O somatic_variants/sample1.vcf.gz
+
+#### germline variants
+wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/hapmap_3.3.hg38.vcf.gz
+wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/hapmap_3.3.hg38.vcf.gz.tbi
+
+gatk HaplotypeCaller -R chr6.fa -I sample1_recal.bam -O sample1_germline.g.vcf.gz -ERC GVCF
+gatk HaplotypeCaller -R chr6.fa -I sample2_recal.bam -O sample2_germline.g.vcf.gz -ERC GVCF
+gatk HaplotypeCaller -R chr6.fa -I sample3_recal.bam -O sample3_germline.g.vcf.gz -ERC GVCF
+
+# importing vcf to genomicDB
+gatk GenomicsDBImport -V sample1_germline.g.vcf.gz -V sample2_germline.g.vcf.gz -V sample3_germline.g.vcf.gz --genomicsdb-workspace-path test_db --intervals chr6
+
+# genotyping
+gatk GenotypeGVCFs -R chr6.fa -V gendb://test_db -O try_new.vcf.gz 
 
 
 
