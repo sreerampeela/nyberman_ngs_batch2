@@ -46,11 +46,11 @@ samtools index bam_files/fullvars_bqsr.bam
 
 
 ### calling somatic variants using GATK
-gatk Mutect2 -I bam_files/fullvars_bqsr.bam -R ref_genome/Homo_sapiens_assembly38.fasta -O somatic_variants/merged_vars.vcf.gz
+gatk Mutect2 -I bam_files/fullvars_bqsr.bam -R ref_genome/Homo_sapiens_assembly38.fasta -L bam_files/bed_file.bed -O somatic_variants/merged_vars.vcf.gz
 
 #### germline variants
 gatk HaplotypeCaller -R ref_genome/Homo_sapiens_assembly38.fasta -I bam_files/normal.bam -L bam_files/bed_file.bed -O normal_germline.vcf.gz -ERC GVCF
-gatk HaplotypeCaller -R ref_genome/Homo_sapiens_assembly38.fasta -I bam_files/tumor.bam -O tumor_germline.vcf.gz -ERC GVCF
+gatk HaplotypeCaller -R ref_genome/Homo_sapiens_assembly38.fasta -I bam_files/tumor.bam -L bam_files/bed_file.bed -O tumor_germline.vcf.gz -ERC GVCF
 
 # importing vcf to genomicDB
 gatk GenomicsDBImport -V normal_germline.vcf.gz -V tumor_germline.vcf.gz --genomicsdb-workspace-path test_db --intervals chr1
@@ -58,14 +58,15 @@ gatk GenomicsDBImport -V normal_germline.vcf.gz -V tumor_germline.vcf.gz --genom
 # genotyping
 gatk GenotypeGVCFs -R ref_genome/Homo_sapiens_assembly38.fasta -V gendb://test_db -O combined_genotyping.vcf.gz 
 
-# VQSR
+# VQSR (couldn't run it due to space and speed constraints)
 wget https://console.cloud.google.com/storage/browser/_details/genomics-public-data/resources/broad/hg38/v0/1000G_phase1.snps.high_confidence.hg38.vcf.gz
 wget https://console.cloud.google.com/storage/browser/_details/genomics-public-data/resources/broad/hg38/v0/1000G_phase1.snps.high_confidence.hg38.vcf.gz.tbi
 
 gatk VariantRecalibrator \
-   -R Homo_sapiens_assembly38.fasta \
+   -R ref_genome/Homo_sapiens_assembly38.fasta \
    -V combined_genotyping.vcf.gz  \
-   --resource:1000G,known=false,training=true,truth=false,prior=10.0 1000G_phase1.snps.high_confidence.hg38.vcf.gz \
+   --resource:1000G,known=true,training=false,truth=false,prior=10.0 ref_genome/1000G_phase1.snps.high_confidence.hg38.vcf.gz \
+   --resource:omni,known=false,training=true,truth=false,prior=12.0 ref_genome/1000G_omni2.5.hg38.sites.vcf.gz \
    --an QD -an MQ -an MQRankSum -an ReadPosRankSum -an FS -an SOR \
    -mode SNP \
    -O output.recal \
