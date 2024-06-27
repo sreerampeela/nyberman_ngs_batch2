@@ -1,1 +1,5 @@
-a sample data on how to upload files to github
+https://docs.google.com/presentation/d/1AhWCaosIzjQ4qmi0SQxuAVIXQ8Z0pJso/edit?usp=sharing&ouid=109639223178629188444&rtpof=true&sd=true
+
+wget -o test1.zip --no-check-certificate 'https://docs.google.com/uc?export=download&id=1Ln3Zx_x141jboDRiwe755XgtwiQnh-xi
+
+https://drive.google.com/file/d/1Ln3Zx_x141jboDRiwe755XgtwiQnh-xi/view?usp=sharing
