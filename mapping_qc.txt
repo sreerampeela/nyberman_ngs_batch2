@@ -7,16 +7,16 @@ docker pull broadinstitute/gatk:latest
 docker run -it -v $PWD:/data/ broadinstitute/gatk:latest
 
 # create another sample SAM file (useful for multi-sample comparison)
-gatk MergeBamAlignment \\
-      ALIGNED=aligned.bam \\
-      UNMAPPED=unmapped.bam \\
-      O=merge_alignments.bam \\
-      R=reference_sequence.fasta
+# download tumor and normal sample bam files
+samtools merge -r -o merged.bam normal.bam tumor.bam 
 
-gatk SortSam -I /data/sample1.sam -O /data/sample1_sorted.sam -SORT_ORDER coordinate
+gatk SortSam -I bam_files/merged.bam -O bam_files/merged_sorted.bam -SORT_ORDER coordinate
 
 # mark duplicates
-
+gatk MarkDuplicates \
+      I=bam_files/merged_sorted.bam \
+      O=bam_files/marked_duplicates.bam \
+      M=bam_files/marked_dup_metrics.txt
 
 # BQSR
 # download the file 
@@ -26,38 +26,63 @@ gatk IndexFeatureFile --input read_mapping/Homo_sapiens_assembly38.dbsnp138.vcf
 # create ref genome index using samtools
 samtools faidx ref_genome/chr1.fa
 
-## add read group info
-gatk AddOrReplaceReadGroups \
-       I=read_mapping/marked_duplicates.sam \
-       O=mapping_qc/sam1_rg.sam \
-       RGID=sam1 \
-       RGLB=sam1 \
-       RGPL=ILLUMINA \
-       RGPU=unit1 \
-       RGSM=20
+## add read group info if not present already
 
-gatk BaseRecalibrator -I mapping_qc/sam1_rg.sam -R ref_genome/chr1.fa --known-sites read_mapping/Homo_sapiens_assembly38.dbsnp138.vcf -O mapping_qc/sample1_recal_data.table
+# extract records from chr1 alone using bed file
+samtools view -L bam_files/bed_file.bed bam_files/merged_sorted.bam -o bam_files/chr1_bamfile.bam
 
-gatk ApplyBQSR -R ref_genome/chr1.fa -I mapping_qc/sam1_rg.sam --bqsr-recal-file mapping_qc/sample1_recal_data.table -O mapping_qc/sample1_recal.bam
-samtools index mapping_qc/sample1_recal.bam
+#BQSR
+gatk BaseRecalibrator -I bam_files/chr1_bamfile.bam -R ref_genome/chr1.fa --known-sites read_mapping/Homo_sapiens_assembly38.dbsnp138.vcf -O recal_data.table
 
-### calling somatic variants using GATK
-# running tumor only pipeline
-gatk Mutect2 -I mapping_qc/sample1_recal.bam -R ref_genome/chr1.fa -O somatic_variants/sample1.vcf.gz
+gatk ApplyBQSR -R ref_genome/chr1.fa -I bam_files/chr1_bamfile.bam --bqsr-recal-file recal_data.table -O bam_files/chr1_bqsr.bam
+samtools index bam_files/chr1_bqsr.bam
 
-#### germline variants
+
+
+
+# download ref data
+wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.dict
+wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
+wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta.fai
 wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/hapmap_3.3.hg38.vcf.gz
 wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/hapmap_3.3.hg38.vcf.gz.tbi
 
-gatk HaplotypeCaller -R chr6.fa -I sample1_recal.bam -O sample1_germline.g.vcf.gz -ERC GVCF
-gatk HaplotypeCaller -R chr6.fa -I sample2_recal.bam -O sample2_germline.g.vcf.gz -ERC GVCF
-gatk HaplotypeCaller -R chr6.fa -I sample3_recal.bam -O sample3_germline.g.vcf.gz -ERC GVCF
+
+### calling somatic variants using GATK
+gatk Mutect2 -I bam_files/merged_sorted.bam -R ref_genome/Homo_sapiens_assembly38.fasta -O somatic_variants/merged_vars.vcf.gz
+
+#### germline variants
+gatk HaplotypeCaller -R ref_genome/Homo_sapiens_assembly38.fasta -I bam_files/normal.bam -L bam_files/bed_file.bed -O normal_germline.vcf.gz -ERC GVCF
+gatk HaplotypeCaller -R ref_genome/Homo_sapiens_assembly38.fasta -I bam_files/tumor.bam -O tumor_germline.vcf.gz -ERC GVCF
 
 # importing vcf to genomicDB
-gatk GenomicsDBImport -V sample1_germline.g.vcf.gz -V sample2_germline.g.vcf.gz -V sample3_germline.g.vcf.gz --genomicsdb-workspace-path test_db --intervals chr6
+gatk GenomicsDBImport -V normal_germline.vcf.gz -V tumor_germline.vcf.gz --genomicsdb-workspace-path test_db --intervals chr1
 
 # genotyping
-gatk GenotypeGVCFs -R chr6.fa -V gendb://test_db -O try_new.vcf.gz 
+gatk GenotypeGVCFs -R ref_genome/chr1.fa -V gendb://test_db -O combined_genotyping.vcf.gz 
+
+# VQSR
+wget https://console.cloud.google.com/storage/browser/_details/genomics-public-data/resources/broad/hg38/v0/1000G_phase1.snps.high_confidence.hg38.vcf.gz
+wget https://console.cloud.google.com/storage/browser/_details/genomics-public-data/resources/broad/hg38/v0/1000G_phase1.snps.high_confidence.hg38.vcf.gz.tbi
+
+gatk VariantRecalibrator \
+   -R Homo_sapiens_assembly38.fasta \
+   -V combined_genotyping.vcf.gz  \
+   --resource:1000G,known=false,training=true,truth=false,prior=10.0 1000G_phase1.snps.high_confidence.hg38.vcf.gz \
+   --an QD -an MQ -an MQRankSum -an ReadPosRankSum -an FS -an SOR \
+   -mode SNP \
+   -O output.recal \
+   --tranches-file output.tranches \
+   --rscript-file output.plots.R
+
+ gatk ApplyVQSR \
+   -R Homo_sapiens_assembly38.fasta \
+   -V combined_genotyping.vcf.gz \
+   -O output_filtered.vcf.gz \
+   --truth-sensitivity-filter-level 99.0 \
+   --tranches-file output.tranches \
+   --recal-file output.recal \
+   -mode SNP
 
 
-
+## variant annotation using VEP
